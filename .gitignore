@@ -1,0 +1,34 @@
+# Environments
+venv/
+env/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary files & logs
+*.log
+*.sqlite3
+.DS_Store
+
+# Data & Models
+uploads/
+synthetic_output/
+*.csv
+*.json
+*.pkl
+*.pth
+*.h5
+
+# Plots (Ignore generated plots but allow the dir if an empty placeholder exists)
+static/plots/*.png
+!static/plots/.gitkeep
+
+# IDEs
+.vscode/
+.idea/

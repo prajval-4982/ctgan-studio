@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results — CTGAN Studio</title>
+    <meta name="description"
+        content="View synthetic data preview, statistical evaluation, and ML model performance comparison.">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        :root {
+            --bg: #fafafa;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f4f4f5;
+            --surface: #f4f4f5;
+            --border: #eaeaea;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --accent: #000000;
+            --accent-glow: rgba(0, 0, 0, .15);
+            --accent2: #0070f3;
+            --accent3: #111827;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius: 12px;
+            --font: 'Inter', system-ui, sans-serif
+        }
+
+        html {
+            scroll-behavior: smooth
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6
+        }
+
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2.5rem;
+            background: rgba(244, 244, 245, .80);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border)
+        }
+
+        .logo {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .logo img {
+            height: 32px;
+            width: auto;
+        }
+
+        nav .nav-links {
+            display: flex;
+            gap: 1.8rem;
+            list-style: none
+        }
+
+        nav .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: .95rem;
+            transition: color .2s
+        }
+
+        nav .nav-links a:hover,
+        nav .nav-links a.active {
+            color: var(--accent)
+        }
+
+        .flash {
+            padding: 1rem 2rem;
+            margin: 1rem 2.5rem;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: .95rem
+        }
+
+        .flash-success {
+            background: rgba(16, 185, 129, .12);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, .3)
+        }
+
+        .flash-warning {
+            background: rgba(245, 158, 11, .12);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, .3)
+        }
+
+        .flash-danger {
+            background: rgba(239, 68, 68, .12);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, .3)
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2.5rem auto;
+            padding: 0 2rem
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: .4rem
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem
+        }
+
+        .section {
+            margin-bottom: 3rem
+        }
+
+        .section h2 {
+            font-size: 1.4rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: .5rem
+        }
+
+        /* Tables */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: var(--radius);
+            border: 1px solid var(--border)
+        }
+
+        table.table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .88rem
+        }
+
+        table.table th {
+            background: var(--surface);
+            color: var(--accent2);
+            padding: .7rem 1rem;
+            text-align: left;
+            position: sticky;
+            top: 0
+        }
+
+        table.table td {
+            padding: .6rem 1rem;
+            border-top: 1px solid var(--border)
+        }
+
+        table.table tr:hover td {
+            background: var(--bg-card-hover)
+        }
+
+        /* ML metrics grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            transition: border-color .2s
+        }
+
+        .metric-card:hover {
+            border-color: var(--accent)
+        }
+
+        .metric-card h3 {
+            margin-bottom: .75rem;
+            font-size: 1.05rem
+        }
+
+        .metric-card .tag {
+            display: inline-block;
+            padding: .2rem .6rem;
+            border-radius: 6px;
+            font-size: .78rem;
+            font-weight: 600;
+            margin-bottom: .75rem
+        }
+
+        .tag-real {
+            background: #000;
+            color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .tag-synth {
+            background: #27272a;
+            /* Dark Zinc/Gray */
+            color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: .35rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: .9rem
+        }
+
+        .metric-row:last-child {
+            border-bottom: none
+        }
+
+        .metric-row .val {
+            font-weight: 700;
+            color: var(--accent)
+        }
+
+        /* Plots */
+        .plots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 1.5rem
+        }
+
+        .plot-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: border-color .2s
+        }
+
+        .plot-card:hover {
+            border-color: var(--accent)
+        }
+
+        .plot-card img {
+            width: 100%;
+            display: block
+        }
+
+        /* Downloads */
+        .downloads {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .7rem 1.4rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: .9rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: transform .15s, box-shadow .25s;
+            font-family: var(--font)
+        }
+
+        .btn:hover {
+            transform: translateY(-2px)
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 4px 14px var(--accent-glow)
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--accent2);
+            border: 1.5px solid var(--accent2)
+        }
+
+        .btn-outline:hover {
+            background: rgba(0, 0, 0, .05)
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: #fff
+        }
+
+        .btn-pink {
+            background: #db2777;
+            color: #fff
+        }
+
+        .stat-tables {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: .85rem;
+            border-top: 1px solid var(--border)
+        }
+
+        footer a {
+            color: var(--accent2);
+            text-decoration: none
+        }
+
+        @media(max-width:768px) {
+
+            .metrics-grid,
+            .stat-tables {
+                grid-template-columns: 1fr
+            }
+
+            .plots-grid {
+                grid-template-columns: 1fr
+            }
+        }
+
+        /* Privacy Scorecard */
+        .privacy-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            display: flex;
+            gap: 2.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .privacy-ring {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            flex-shrink: 0;
+        }
+
+        .privacy-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .privacy-ring .score-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.6rem;
+            font-weight: 800;
+        }
+
+        .privacy-details {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .privacy-details h3 {
+            font-size: 1.1rem;
+            margin-bottom: .5rem;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: .25rem .7rem;
+            border-radius: 6px;
+            font-size: .78rem;
+            font-weight: 700;
+            margin-bottom: .75rem;
+        }
+
+        .risk-LOW {
+            background: rgba(16, 185, 129, .15);
+            color: var(--success);
+        }
+
+        .risk-MEDIUM {
+            background: rgba(245, 158, 11, .15);
+            color: var(--warning);
+        }
+
+        .risk-HIGH {
+            background: rgba(239, 68, 68, .15);
+            color: var(--danger);
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='favicon.png') }}" alt="Logo">
+            CTGAN Studio
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/upload">Upload</a></li>
+            <li><a href="/generate">Generate</a></li>
+            <li><a href="/results" class="active">Results</a></li>
+        </ul>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for category, msg in messages %}
+    <div class="flash flash-{{ category }}">{{ msg }}</div>
+    {% endfor %}{% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <h1>📊 Results Dashboard</h1>
+        <p class="subtitle">{{ num_rows }} synthetic records generated{% if model_type %} using <strong>{{ model_type
+                }}</strong>{% endif %} and evaluated.</p>
+
+        <!-- ===== Synthetic Data Preview ===== -->
+        <div class="section">
+            <h2>🔍 Synthetic Data Preview</h2>
+            <div class="table-wrapper">
+                {{ synth_preview | safe }}
+            </div>
+        </div>
+
+        <!-- ===== Download ===== -->
+        <div class="section">
+            <h2>⬇️ Download Synthetic Data</h2>
+            <div class="downloads">
+                <a href="/download/csv" class="btn btn-primary" id="dl-csv">📄 CSV</a>
+                <a href="/download/xlsx" class="btn btn-success" id="dl-xlsx">📊 Excel</a>
+                <a href="/download/json" class="btn btn-outline" id="dl-json">🗂️ JSON</a>
+                <a href="/download/docx" class="btn btn-pink" id="dl-docx">📝 DOCX</a>
+            </div>
+            <div style="margin-top:1.2rem;text-align:center;">
+                <a href="/download/audit-report" class="btn btn-primary" id="dl-audit"
+                   style="background:#111827;padding:.7rem 1.8rem;font-size:.95rem;">
+                    🛡️ Download Technical Audit Report
+                </a>
+            </div>
+        </div>
+
+        <!-- ===== Privacy Scorecard ===== -->
+        {% if privacy %}
+        <div class="section">
+            <h2>🛡️ Privacy & Security Audit</h2>
+            <div class="privacy-card">
+                <div class="privacy-ring">
+                    <svg width="120" height="120" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border)" stroke-width="10" />
+                        <circle cx="60" cy="60" r="52" fill="none"
+                            stroke="{% if privacy.privacy_score >= 80 %}var(--success){% elif privacy.privacy_score >= 50 %}var(--warning){% else %}var(--danger){% endif %}"
+                            stroke-width="10" stroke-linecap="round"
+                            stroke-dasharray="{{ (privacy.privacy_score / 100 * 326.7)|round(1) }} 326.7" />
+                    </svg>
+                    <div class="score-text">{{ privacy.privacy_score }}%</div>
+                </div>
+                <div class="privacy-details">
+                    <h3>Distance to Closest Record (DCR)</h3>
+                    <span class="risk-badge risk-{{ privacy.risk_level }}">{{ privacy.risk_level }} RISK</span>
+                    <div class="metric-row"><span>Mean DCR</span><span class="val">{{ privacy.mean_dcr }}</span></div>
+                    <div class="metric-row"><span>Median DCR</span><span class="val">{{ privacy.median_dcr }}</span>
+                    </div>
+                    <div class="metric-row"><span>Min DCR (worst case)</span><span class="val">{{ privacy.min_dcr
+                            }}</span></div>
+                    <div class="metric-row"><span>Records at Risk</span><span class="val">{{ privacy.at_risk_count }} /
+                            {{ privacy.total_synthetic }} ({{ privacy.pct_at_risk }}%)</span></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ===== Statistical Comparison ===== -->
+        <div class="section">
+            <h2>📈 Statistical Comparison</h2>
+            <div class="stat-tables">
+                <div>
+                    <h3 style="margin-bottom:.5rem;font-size:1rem;">Mean Comparison</h3>
+                    <div class="table-wrapper">{{ mean_html | safe }}</div>
+                </div>
+                <div>
+                    <h3 style="margin-bottom:.5rem;font-size:1rem;">Std Deviation Comparison</h3>
+                    <div class="table-wrapper">{{ std_html | safe }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== Distribution Plots ===== -->
+        <div class="section">
+            <h2>📉 Distribution &amp; Correlation Plots</h2>
+            <div class="plots-grid">
+                <!-- Render Dynamic Histograms -->
+                {% if hist_data %}
+                    {% for col_name in hist_data.keys() %}
+                    <div class="plot-card" style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);">
+                        <canvas id="histChart_{{ loop.index }}"></canvas>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Render Static Correlation Heatmaps (from backend PNG) -->
+                {% for pf in plot_files %}
+                    {% if 'correlation' in pf %}
+                    <div class="plot-card">
+                        <img src="{{ url_for('static', filename='plots/' + pf) }}" alt="{{ pf }}">
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ===== Scientific Quality Scores ===== -->
+        {% if scientific_scores %}
+        <div class="section">
+            <h2>🔬 Scientific Quality Scores</h2>
+            <p style="color:var(--text-muted);margin-bottom:1.2rem;font-size:.92rem;">
+                Formal statistical tests to verify if synthetic distributions match the original data.
+            </p>
+
+            <!-- Summary Cards -->
+            <div class="metrics-grid" style="margin-bottom:1.5rem">
+                <div class="metric-card">
+                    <h3 style="margin-bottom:.6rem">KS Similarity</h3>
+                    <div style="font-size:2rem;font-weight:800;color:var(--accent)">{{ scientific_scores.ks_mean_score }}</div>
+                    <p style="font-size:.82rem;color:var(--text-muted);margin-top:.3rem">1.0 = identical distributions</p>
+                </div>
+                <div class="metric-card">
+                    <h3 style="margin-bottom:.6rem">JS Similarity</h3>
+                    <div style="font-size:2rem;font-weight:800;color:var(--accent)">{{ scientific_scores.js_mean_score }}</div>
+                    <p style="font-size:.82rem;color:var(--text-muted);margin-top:.3rem">1.0 = zero divergence</p>
+                </div>
+                <div class="metric-card">
+                    <h3 style="margin-bottom:.6rem">Correlation Similarity</h3>
+                    <div style="font-size:2rem;font-weight:800;color:var(--accent)">{{ scientific_scores.corr_similarity }}%</div>
+                    <p style="font-size:.82rem;color:var(--text-muted);margin-top:.3rem">Feature relationship preservation</p>
+                </div>
+            </div>
+
+            <!-- KS Test Details -->
+            <details style="margin-bottom:1rem">
+                <summary style="cursor:pointer;font-weight:600;font-size:.95rem">📊 Kolmogorov-Smirnov Test (per column)</summary>
+                <div class="table-wrapper" style="margin-top:.5rem">
+                    <table class="table">
+                        <thead><tr><th>Column</th><th>KS Statistic</th><th>P-Value</th><th>Result</th></tr></thead>
+                        <tbody>
+                            {% for ks in scientific_scores.ks_results %}
+                            <tr>
+                                <td><strong>{{ ks.column }}</strong></td>
+                                <td>{{ ks.statistic }}</td>
+                                <td>{{ ks.p_value }}</td>
+                                <td>{% if ks.pass %}<span style="color:var(--success)">✅ Pass</span>{% else %}<span style="color:var(--danger)">❌ Fail</span>{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+
+            <!-- JS Distance Details -->
+            <details>
+                <summary style="cursor:pointer;font-weight:600;font-size:.95rem">📐 Jensen-Shannon Distance (per column)</summary>
+                <div class="table-wrapper" style="margin-top:.5rem">
+                    <table class="table">
+                        <thead><tr><th>Column</th><th>JS Distance</th><th>Similarity</th></tr></thead>
+                        <tbody>
+                            {% for js in scientific_scores.js_results %}
+                            <tr>
+                                <td><strong>{{ js.column }}</strong></td>
+                                <td>{{ js.distance }}</td>
+                                <td>{{ (1 - js.distance)|round(4) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        </div>
+        {% endif %}
+
+        <!-- ===== ML Evaluation ===== -->
+        <div class="section">
+            <h2>🤖 Machine Learning Evaluation</h2>
+            <div class="metrics-grid">
+                <!-- Real data metrics -->
+                <div class="metric-card">
+                    <span class="tag tag-real">Trained on Real Data</span>
+                    {% for r in real_tbl %}
+                    <h3>{{ r.Model }}</h3>
+                    <div class="metric-row"><span>Accuracy</span><span class="val">{{ r.Accuracy }}</span></div>
+                    <div class="metric-row"><span>Precision</span><span class="val">{{ r.Precision }}</span></div>
+                    <div class="metric-row"><span>Recall</span><span class="val">{{ r.Recall }}</span></div>
+                    <div class="metric-row"><span>F1 Score</span><span class="val">{{ r['F1 Score'] }}</span></div>
+                    <div class="metric-row"><span>ROC-AUC</span><span class="val">{{ r['ROC-AUC'] if r['ROC-AUC'] is not none else 'N/A' }}</span></div>
+                    {% if r['Confusion Matrix'] %}
+                    <details style="margin-top:.5rem">
+                        <summary style="cursor:pointer;font-size:.82rem;color:var(--text-muted)">View Confusion Matrix</summary>
+                        <table class="table" style="margin-top:.4rem;font-size:.8rem">
+                            {% for row in r['Confusion Matrix'] %}
+                            <tr>{% for val in row %}<td style="text-align:center;padding:.3rem .6rem">{{ val }}</td>{% endfor %}</tr>
+                            {% endfor %}
+                        </table>
+                    </details>
+                    {% endif %}
+                    {% if not loop.last %}
+                    <hr style="border-color:var(--border);margin:1rem 0">{% endif %}
+                    {% endfor %}
+                </div>
+                <!-- Synthetic data metrics -->
+                <div class="metric-card">
+                    <span class="tag tag-synth">Trained on Synthetic Data</span>
+                    {% for s in synth_tbl %}
+                    <h3>{{ s.Model }}</h3>
+                    <div class="metric-row"><span>Accuracy</span><span class="val">{{ s.Accuracy }}</span></div>
+                    <div class="metric-row"><span>Precision</span><span class="val">{{ s.Precision }}</span></div>
+                    <div class="metric-row"><span>Recall</span><span class="val">{{ s.Recall }}</span></div>
+                    <div class="metric-row"><span>F1 Score</span><span class="val">{{ s['F1 Score'] }}</span></div>
+                    <div class="metric-row"><span>ROC-AUC</span><span class="val">{{ s['ROC-AUC'] if s['ROC-AUC'] is not none else 'N/A' }}</span></div>
+                    {% if s['Confusion Matrix'] %}
+                    <details style="margin-top:.5rem">
+                        <summary style="cursor:pointer;font-size:.82rem;color:var(--text-muted)">View Confusion Matrix</summary>
+                        <table class="table" style="margin-top:.4rem;font-size:.8rem">
+                            {% for row in s['Confusion Matrix'] %}
+                            <tr>{% for val in row %}<td style="text-align:center;padding:.3rem .6rem">{{ val }}</td>{% endfor %}</tr>
+                            {% endfor %}
+                        </table>
+                    </details>
+                    {% endif %}
+                    {% if not loop.last %}
+                    <hr style="border-color:var(--border);margin:1rem 0">{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== Feature Importance Alignment ===== -->
+        {% if feature_importance %}
+        <div class="section">
+            <h2>🎯 Feature Importance Alignment</h2>
+            <p style="color:var(--text-muted);margin-bottom:1rem;font-size:.92rem;">
+                Compares which features the Random Forest model considers most important when trained on Real vs
+                Synthetic data.
+                Close alignment proves the synthetic data has preserved the underlying logic of the original dataset.
+            </p>
+            <div class="plot-card" style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); height: 400px; display: flex; align-items: center; justify-content: center;">
+                <canvas id="featImportChart" style="max-height: 100%;"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <footer>
+        Built with ❤️ using <a href="https://sdv.dev/" target="_blank">SDV</a> &amp; Flask
+        &nbsp;|&nbsp; MCA Final Year Project
+    </footer>
+
+    <!-- Chart.js Initialization -->
+    <!-- Hidden data blocks to avoid JS linting errors with Jinja2 -->
+    <script id="hist-data-raw" type="application/json">
+        {{ hist_data | tojson | safe if hist_data else '{}' }}
+    </script>
+    <script id="fi-data-raw" type="application/json">
+        {{ feature_importance | tojson | safe if feature_importance else '{}' }}
+    </script>
+
+    <!-- Chart.js Initialization -->
+    <script>
+        // Default Chart.js settings for clean dark/monochrome aesthetic
+        Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+        Chart.defaults.color = '#6b7280';
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,0,0,0.85)';
+        Chart.defaults.plugins.tooltip.padding = 10;
+        Chart.defaults.plugins.tooltip.cornerRadius = 8;
+        Chart.defaults.scale.grid.color = 'rgba(0,0,0,0.05)';
+
+        // Helper to get structured data from JSON block
+        const getRawData = (id) => {
+            const el = document.getElementById(id);
+            return (el && el.textContent.trim()) ? JSON.parse(el.textContent) : {};
+        };
+
+        // ==============================================
+        // 1. Distribution Plots (Histograms)
+        // ==============================================
+        const rawHist = getRawData('hist-data-raw');
+        const cols = Object.keys(rawHist);
+        
+        if (cols.length > 0) {
+            cols.forEach((col, index) => {
+                const canvasId = 'histChart_' + (index + 1);
+                const ctx = document.getElementById(canvasId);
+                if(ctx) {
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: rawHist[col].labels,
+                            datasets: [
+                                {
+                                    label: 'Real Data',
+                                    data: rawHist[col].real_counts,
+                                    backgroundColor: 'rgba(76, 114, 176, 0.7)',
+                                    borderWidth: 0,
+                                    barPercentage: 1.0,
+                                    categoryPercentage: 1.0,
+                                },
+                                {
+                                    label: 'Synthetic Data',
+                                    data: rawHist[col].synth_counts,
+                                    backgroundColor: 'rgba(221, 132, 82, 0.7)',
+                                    borderWidth: 0,
+                                    barPercentage: 1.0,
+                                    categoryPercentage: 1.0,
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            interaction: { mode: 'index', intersect: false },
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Distribution — ' + col,
+                                    font: { size: 14, weight: 'bold' },
+                                    color: '#111827'
+                                },
+                                legend: { position: 'bottom' }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { display: false } },
+                                y: { beginAtZero: true, title: { display: true, text: 'Frequency' } }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        // ==============================================
+        // 2. Feature Importance Horizontal Bar Chart
+        // ==============================================
+        const rawFI = getRawData('fi-data-raw');
+        if (rawFI && rawFI.features) {
+            const fiCtx = document.getElementById('featImportChart');
+            if(fiCtx) {
+                new Chart(fiCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: rawFI.features,
+                        datasets: [
+                            {
+                                label: 'Real Importance',
+                                data: rawFI.real,
+                                backgroundColor: 'rgba(50, 50, 50, 0.9)',
+                                borderRadius: 4,
+                            },
+                            {
+                                label: 'Synthetic Importance',
+                                data: rawFI.synthetic,
+                                backgroundColor: 'rgba(180, 180, 180, 0.9)',
+                                borderRadius: 4,
+                            }
+                        ]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ' + context.parsed.x.toFixed(4);
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { beginAtZero: true, grid: { display: true }, title: { display: true, text: 'Gini Importance' } },
+                            y: { grid: { display: false } }
+                        }
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>

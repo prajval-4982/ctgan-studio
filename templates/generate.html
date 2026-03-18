@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Synthetic Data — CTGAN Studio</title>
+    <meta name="description" content="Configure and generate synthetic tabular data using a CTGAN model.">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        :root {
+            --bg: #fafafa;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f4f4f5;
+            --surface: #f4f4f5;
+            --border: #eaeaea;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --accent: #000000;
+            --accent-glow: rgba(0, 0, 0, .15);
+            --accent2: #0070f3;
+            --accent3: #111827;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius: 12px;
+            --font: 'Inter', system-ui, sans-serif
+        }
+
+        html {
+            scroll-behavior: smooth
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh
+        }
+
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2.5rem;
+            background: rgba(244, 244, 245, .80);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border)
+        }
+
+        .logo {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .logo img {
+            height: 32px;
+            width: auto;
+        }
+
+        nav .nav-links {
+            display: flex;
+            gap: 1.8rem;
+            list-style: none
+        }
+
+        nav .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: .95rem;
+            transition: color .2s
+        }
+
+        nav .nav-links a:hover,
+        nav .nav-links a.active {
+            color: var(--accent)
+        }
+
+        .flash {
+            padding: 1rem 2rem;
+            margin: 1rem 2.5rem;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: .95rem
+        }
+
+        .flash-success {
+            background: rgba(16, 185, 129, .12);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, .3)
+        }
+
+        .flash-warning {
+            background: rgba(245, 158, 11, .12);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, .3)
+        }
+
+        .flash-danger {
+            background: rgba(239, 68, 68, .12);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, .3)
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 3rem auto;
+            padding: 0 2rem
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: .5rem
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2.5rem
+        }
+
+        .gen-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2.5rem;
+            transition: border-color .3s
+        }
+
+        .gen-card:hover {
+            border-color: var(--accent)
+        }
+
+        .gen-card label {
+            display: block;
+            margin-bottom: .4rem;
+            font-weight: 600;
+            font-size: .95rem
+        }
+
+        .gen-card .hint {
+            color: var(--text-muted);
+            font-size: .82rem;
+            margin-bottom: 1.2rem
+        }
+
+        .gen-card input[type=number],
+        .gen-card select {
+            width: 100%;
+            padding: .75rem 1rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 1rem;
+            font-family: var(--font);
+            outline: none;
+            transition: border-color .2s;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .gen-card input[type=number]:focus,
+        .gen-card select:focus {
+            border-color: var(--accent)
+        }
+
+        .gen-card .dataset-badge {
+            display: inline-block;
+            background: var(--surface);
+            padding: .4rem .9rem;
+            border-radius: 8px;
+            font-size: .88rem;
+            color: var(--accent2);
+            margin-bottom: 1.5rem;
+            font-weight: 500
+        }
+
+        .field-group {
+            margin-bottom: 1.5rem
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .75rem 1.65rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: .95rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: transform .15s, box-shadow .25s;
+            font-family: var(--font)
+        }
+
+        .btn:hover {
+            transform: translateY(-2px)
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 4px 14px var(--accent-glow)
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 8px 32px var(--accent-glow)
+        }
+
+        .spinner {
+            display: none;
+            text-align: center;
+            margin-top: 1.5rem
+        }
+
+        .spinner.active {
+            display: block
+        }
+
+        .spinner p {
+            color: var(--text-muted);
+            margin-top: .5rem;
+            font-size: .92rem
+        }
+
+        .spinner .dots span {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin: 0 4px;
+            animation: bounce .6s infinite alternate
+        }
+
+        .spinner .dots span:nth-child(2) {
+            animation-delay: .2s
+        }
+
+        .spinner .dots span:nth-child(3) {
+            animation-delay: .4s
+        }
+
+        @keyframes bounce {
+            to {
+                transform: translateY(-12px);
+                opacity: .4
+            }
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: .85rem;
+            border-top: 1px solid var(--border)
+        }
+
+        footer a {
+            color: var(--accent2);
+            text-decoration: none
+        }
+
+        @media(max-width:640px) {
+            .container {
+                padding: 0 1.2rem
+            }
+
+            h1 {
+                font-size: 1.5rem
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='favicon.png') }}" alt="Logo">
+            CTGAN Studio
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/upload">Upload</a></li>
+            <li><a href="/generate" class="active">Generate</a></li>
+            <li><a href="/results">Results</a></li>
+        </ul>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for category, msg in messages %}
+    <div class="flash flash-{{ category }}">{{ msg }}</div>
+    {% endfor %}{% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <h1>🧠 Generate Synthetic Data</h1>
+        <p class="subtitle">Configure parameters, then train CTGAN and generate synthetic records.</p>
+
+        <form method="POST" id="gen-form" onsubmit="showSpinner()">
+            <div class="gen-card">
+                {% if dataset_name %}
+                <div class="dataset-badge">📄 {{ dataset_name }}</div>
+                {% endif %}
+
+                <div class="field-group">
+                    <label for="model_type">Model Architecture</label>
+                    <p class="hint">CTGAN uses adversarial training (GAN). TVAE uses a variational autoencoder — often
+                        faster and better at preserving distributions.</p>
+                    <select name="model_type" id="model_type">
+                        <option value="CTGAN" selected>CTGAN — Conditional GAN</option>
+                        <option value="TVAE">TVAE — Variational Autoencoder</option>
+                    </select>
+                </div>
+
+                <div class="field-group">
+                    <label for="num_rows">Number of Synthetic Records</label>
+                    <p class="hint">How many rows of synthetic data should be generated.</p>
+                    <input type="number" name="num_rows" id="num_rows" value="1000" min="10" max="100000" required>
+                </div>
+
+                <div class="field-group">
+                    <label for="epochs">Training Epochs</label>
+                    <p class="hint">More epochs ≈ higher fidelity but longer training time. Recommended: 100–500.</p>
+                    <input type="number" name="epochs" id="epochs" value="300" min="10" max="2000" required>
+                </div>
+
+                <div style="text-align:center;margin-top:.5rem">
+                    <button type="submit" class="btn btn-primary" id="btn-generate">⚡ Train
+                        &amp; Generate</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="spinner" id="spinner">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <p>Training model — this may take a few minutes…</p>
+        </div>
+    </div>
+
+    <footer>
+        Built with ❤️ using <a href="https://sdv.dev/" target="_blank">SDV</a> &amp; Flask
+        &nbsp;|&nbsp; MCA Final Year Project
+    </footer>
+
+    <script>
+        function showSpinner() {
+            document.getElementById('spinner').classList.add('active');
+            document.getElementById('spinner').classList.add('active');
+            setTimeout(() => {
+                const btn = document.getElementById('btn-generate');
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+            }, 10);
+        }
+    </script>
+</body>
+
+</html>

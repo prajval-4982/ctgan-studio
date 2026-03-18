@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTGAN — Synthetic Data Generation</title>
+    <meta name="description"
+        content="A Flask-based web application for generating synthetic tabular data using CTGAN, with statistical and ML evaluation.">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ======= GLOBAL RESET & VARIABLES ======= */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #fafafa;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f4f4f5;
+            --surface: #f4f4f5;
+            --border: #eaeaea;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --accent: #000000;
+            --accent-glow: rgba(0, 0, 0, .15);
+            --accent2: #0070f3;
+            --accent3: #111827;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius: 12px;
+            --font: 'Inter', system-ui, sans-serif;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ======= NAVBAR ======= */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2.5rem;
+            background: rgba(244, 244, 245, .80);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+        }
+
+         .logo {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .logo img {
+            height: 32px;
+            width: auto;
+        }
+        nav .nav-links {
+            display: flex;
+            gap: 1.8rem;
+            list-style: none;
+        }
+
+        nav .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: .95rem;
+            transition: color .2s;
+        }
+
+        nav .nav-links a:hover,
+        nav .nav-links a.active {
+            color: var(--accent);
+        }
+
+        /* ======= HERO ======= */
+        .hero {
+            text-align: center;
+            padding: 6rem 2rem 4rem;
+            background: radial-gradient(ellipse at 50% 0%, var(--accent-glow) 0%, transparent 60%);
+        }
+
+        .hero h1 {
+            font-size: 3.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #111, var(--accent2));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: .75rem;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 640px;
+            margin: 0 auto 2.5rem;
+        }
+
+        .hero .cta {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .75rem 1.65rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: .95rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: transform .15s, box-shadow .25s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 4px 14px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--accent2);
+            border: 1.5px solid var(--accent2);
+        }
+
+        .btn-outline:hover {
+            background: rgba(0, 0, 0, .05);
+        }
+
+        /* ======= CARDS ======= */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 0 2.5rem 4rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            transition: background .2s, border-color .2s, transform .2s;
+        }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+            transform: translateY(-4px);
+        }
+
+        .card .icon {
+            font-size: 2rem;
+            margin-bottom: .75rem;
+        }
+
+        .card h3 {
+            font-size: 1.15rem;
+            margin-bottom: .5rem;
+        }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: .92rem;
+        }
+
+        /* ======= PIPELINE SECTION ======= */
+        .pipeline-section {
+            padding: 2rem 2.5rem 4rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .pipeline-section h2 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 2rem;
+        }
+
+        .pipeline {
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            position: relative;
+        }
+
+        .pipeline::before {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .pipe-step {
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            padding: .85rem 1.2rem;
+            position: relative;
+        }
+
+        .pipe-step .dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 3px solid var(--bg);
+            flex-shrink: 0;
+            z-index: 1;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .pipe-step span {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        /* ======= FOOTER ======= */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: .85rem;
+            border-top: 1px solid var(--border);
+        }
+
+        footer a {
+            color: var(--accent2);
+            text-decoration: none;
+        }
+
+        /* ======= FLASH ======= */
+        .flash {
+            padding: 1rem 2rem;
+            margin: 1rem 2.5rem;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: .95rem;
+        }
+
+        .flash-success {
+            background: rgba(16, 185, 129, .12);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, .3);
+        }
+
+        .flash-warning {
+            background: rgba(245, 158, 11, .12);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, .3);
+        }
+
+        .flash-danger {
+            background: rgba(239, 68, 68, .12);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, .3);
+        }
+
+        /* ======= RESPONSIVE ======= */
+        @media (max-width: 640px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            nav {
+                padding: 1rem 1.2rem;
+            }
+
+            .cards {
+                padding: 0 1.2rem 3rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='favicon.png') }}" alt="Logo">
+            CTGAN Studio
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="active">Home</a></li>
+            <li><a href="/upload">Upload</a></li>
+            <li><a href="/generate">Generate</a></li>
+            <li><a href="/results">Results</a></li>
+        </ul>
+    </nav>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, msg in messages %}
+    <div class="flash flash-{{ category }}">{{ msg }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- Hero -->
+    <section class="hero">
+        <h1>Synthetic Data Generation<br>with CTGAN</h1>
+        <p>Upload your real-world tabular dataset, train a Conditional GAN, and generate
+            high-fidelity synthetic data — complete with statistical and ML evaluation.</p>
+        <div class="cta">
+            <a href="/upload" class="btn btn-primary" id="btn-get-started">🚀 Get Started</a>
+            <a href="#pipeline" class="btn btn-outline" id="btn-how-it-works">📊 How It Works</a>
+        </div>
+    </section>
+
+    <!-- Feature Cards -->
+    <section class="cards">
+        <div class="card">
+            <div class="icon">📂</div>
+            <h3>Upload Dataset</h3>
+            <p>Upload any CSV dataset — the system validates and previews it instantly.</p>
+        </div>
+        <div class="card">
+            <div class="icon">🧹</div>
+            <h3>Auto Preprocessing</h3>
+            <p>Missing values are imputed and categorical columns are encoded automatically.</p>
+        </div>
+        <div class="card">
+            <div class="icon">🧠</div>
+            <h3>CTGAN Training</h3>
+            <p>A Conditional Tabular GAN learns the joint distribution of your real data.</p>
+        </div>
+        <div class="card">
+            <div class="icon">🔄</div>
+            <h3>Generate Records</h3>
+            <p>Create any number of synthetic rows that mirror the statistical properties of the original.</p>
+        </div>
+        <div class="card">
+            <div class="icon">📈</div>
+            <h3>Statistical Evaluation</h3>
+            <p>Distribution histograms, correlation heatmaps, mean/std comparisons.</p>
+        </div>
+        <div class="card">
+            <div class="icon">🤖</div>
+            <h3>ML Utility Testing</h3>
+            <p>Logistic Regression & Decision Tree trained on real vs. synthetic data.</p>
+        </div>
+    </section>
+
+    <!-- Pipeline -->
+    <section class="pipeline-section" id="pipeline">
+        <h2>Application Pipeline</h2>
+        <div class="pipeline">
+            <div class="pipe-step">
+                <div class="dot"></div><span>1 — Upload CSV Dataset</span>
+            </div>
+            <div class="pipe-step">
+                <div class="dot"></div><span>2 — Automatic Preprocessing</span>
+            </div>
+            <div class="pipe-step">
+                <div class="dot"></div><span>3 — CTGAN Model Training</span>
+            </div>
+            <div class="pipe-step">
+                <div class="dot"></div><span>4 — Synthetic Data Generation</span>
+            </div>
+            <div class="pipe-step">
+                <div class="dot"></div><span>5 — Statistical Evaluation</span>
+            </div>
+            <div class="pipe-step">
+                <div class="dot"></div><span>6 — Machine Learning Evaluation</span>
+            </div>
+            <div class="pipe-step">
+                <div class="dot"></div><span>7 — Visualization & Reports</span>
+            </div>
+            <div class="pipe-step">
+                <div class="dot"></div><span>8 — Dashboard Results & Downloads</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        Built with ❤️ using <a href="https://sdv.dev/" target="_blank">SDV</a> &amp; Flask
+        &nbsp;|&nbsp; MCA Final Year Project
+    </footer>
+
+</body>
+
+</html>
