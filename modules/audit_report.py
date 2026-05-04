@@ -21,13 +21,10 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 # ──────────────────────────────────────────────────────────────────────────────
 # Constants
 # ──────────────────────────────────────────────────────────────────────────────
-PROJECT_NAME = "Synthetic Data Generation & Evaluation using CTGAN"
-STUDENT_NAME = "Prajval T Rathod (1MS24MC074)"
-INSTITUTION = "M.S. Ramaiah Institute of Technology — Department of MCA"
-ACADEMIC_YEAR = "2025-26"
+PROJECT_NAME = "CTGAN Studio — Synthetic Data Generator"
 
 REPORT_DIR = os.path.join("data", "reports")
-PLOT_DIR = os.path.join("static", "plots")
+PLOT_DIR   = os.path.join("static", "plots")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -105,14 +102,11 @@ def _add_cover(doc, model_type, num_rows, dataset_name):
 
     # Info table
     info = [
-        ("Project", PROJECT_NAME),
-        ("Student", STUDENT_NAME),
-        ("Institution", INSTITUTION),
-        ("Academic Year", ACADEMIC_YEAR),
-        ("Date Generated", datetime.now().strftime("%B %d, %Y — %H:%M")),
-        ("Dataset", dataset_name),
+        ("Tool",               PROJECT_NAME),
+        ("Date Generated",     datetime.now().strftime("%B %d, %Y — %H:%M")),
+        ("Dataset",            dataset_name),
         ("Model Architecture", model_type),
-        ("Synthetic Records", str(num_rows)),
+        ("Synthetic Records",  str(num_rows)),
     ]
     table = doc.add_table(rows=len(info), cols=2)
     table.style = "Light Shading Accent 1"

@@ -44,6 +44,18 @@ def _train_and_evaluate(X_train, X_test, y_train, y_test, model, model_name: str
     Train a classifier and return evaluation metrics including
     ROC-AUC and Confusion Matrix.
     """
+    if len(set(y_train)) < 2:
+        # Cannot train a classifier — return safe placeholder
+        return {
+            "Model": model_name,
+            "Accuracy": "N/A",
+            "Precision": "N/A",
+            "Recall": "N/A",
+            "F1 Score": "N/A",
+            "ROC-AUC": "N/A",
+            "Confusion Matrix": [],
+        }
+
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
@@ -110,18 +122,36 @@ def evaluate_ml(
 
     # ---------- Real data split ----------
     X_real = real.drop(columns=[target_col])
-    y_real = real[target_col]
+    y_real = real[target_col].copy()
+
+    # Force discrete classification targets (prevent "continuous" ValueError)
+    if pd.api.types.is_numeric_dtype(y_real):
+        y_real = y_real.round().astype(int)
+    else:
+        y_real = y_real.astype(str)
 
     X_train_real, X_test_real, y_train_real, y_test_real = train_test_split(
         X_real, y_real, test_size=0.3, random_state=42
     )
 
-    # ---------- Synthetic features ----------
-    X_synth = synthetic.drop(columns=[target_col])
-    y_synth = synthetic[target_col]
-
     # Determine all classes from the real data
     classes = sorted(y_real.unique().tolist())
+
+    # ---------- Synthetic features ----------
+    X_synth = synthetic.drop(columns=[target_col])
+    y_synth = synthetic[target_col].copy()
+
+    # Match types and clip to known real classes
+    if pd.api.types.is_numeric_dtype(y_synth):
+        min_cls = min(classes) if isinstance(classes[0], (int, float)) else 0
+        max_cls = max(classes) if isinstance(classes[-1], (int, float)) else 1
+        y_synth = y_synth.round().clip(min_cls, max_cls).astype(int)
+    else:
+        y_synth = y_synth.astype(str)
+
+    # Single-class guard: if synthetic data has only one class, ML evaluation is not viable
+    synth_classes = y_synth.unique()
+    single_class_synth = len(synth_classes) < 2
 
     # ---------- Models ----------
     models = [
@@ -144,25 +174,43 @@ def evaluate_ml(
 
         # Capture feature importance from Random Forest (real)
         if name == "Random Forest":
-            rf_importance_real = dict(zip(X_real.columns, clf.feature_importances_))
+            try:
+                rf_importance_real = dict(zip(X_real.columns, clf.feature_importances_))
+            except Exception:
+                rf_importance_real = None
 
         # Train on synthetic, test on real (full real test set)
         synth_clf = clf.__class__(**clf.get_params())  # fresh clone
-        synth_results.append(
-            _train_and_evaluate(X_synth, X_test_real, y_synth, y_test_real, synth_clf, name, classes)
-        )
+        if single_class_synth:
+            synth_results.append({
+                "Model": name,
+                "Accuracy": "N/A",
+                "Precision": "N/A",
+                "Recall": "N/A",
+                "F1 Score": "N/A",
+                "ROC-AUC": "N/A",
+                "Confusion Matrix": [],
+            })
+        else:
+            synth_results.append(
+                _train_and_evaluate(X_synth, X_test_real, y_synth, y_test_real, synth_clf, name, classes)
+            )
 
         # Capture feature importance from Random Forest (synthetic)
-        if name == "Random Forest":
-            rf_importance_synth = dict(zip(X_synth.columns, synth_clf.feature_importances_))
+        if name == "Random Forest" and not single_class_synth:
+            try:
+                rf_importance_synth = dict(zip(X_synth.columns, synth_clf.feature_importances_))
+            except Exception:
+                rf_importance_synth = None
 
     # Build feature importance comparison
     feature_importance = None
-    if rf_importance_real and rf_importance_synth:
+    if rf_importance_real:
+        synth_vals = rf_importance_synth if rf_importance_synth else {k: 0.0 for k in rf_importance_real}
         feature_importance = {
             "features": list(rf_importance_real.keys()),
             "real": [round(v, 4) for v in rf_importance_real.values()],
-            "synthetic": [round(v, 4) for v in rf_importance_synth.values()],
+            "synthetic": [round(synth_vals.get(k, 0.0), 4) for k in rf_importance_real.keys()],
         }
 
     return {

@@ -25,6 +25,9 @@ from modules.statistical_evaluator import (
 )
 from modules.ml_evaluator import evaluate_ml
 from modules.privacy_evaluator import calculate_privacy_metrics
+from modules.dp_ctgan_trainer import train_dp_ctgan
+from modules.mia_evaluator import run_mia
+from sklearn.model_selection import train_test_split
 from modules.report_visualizer import (
     generate_comparison_chart, format_ml_results_table, format_stats_table,
     plot_feature_importance,
@@ -69,6 +72,13 @@ def upload():
     """Upload and preview a CSV dataset."""
     preview_html = None
     info = None
+
+    # Clear stale pipeline state on a fresh visit to the upload page
+    if request.method == "GET":
+        for key in ("dataset_path", "dataset_name", "generated",
+                    "num_rows", "model_type", "epsilon",
+                    "pu_score", "mia_accuracy"):
+            session.pop(key, None)
 
     if request.method == "POST":
         file = request.files.get("dataset")
@@ -117,6 +127,7 @@ def upload():
     return render_template("upload.html", preview_html=preview_html, info=info)
 
 
+
 # ---------- Synthetic Generation ----------------------------------------------
 
 @app.route("/generate", methods=["GET", "POST"])
@@ -129,8 +140,9 @@ def generate():
     if request.method == "POST":
         try:
             num_rows = int(request.form.get("num_rows", 1000))
-            epochs = int(request.form.get("epochs", 300))
+            epochs = int(request.form.get("epochs", 100))
             model_type = request.form.get("model_type", "CTGAN").upper()
+            epsilon = float(request.form.get("epsilon", 1.0))
         except ValueError:
             flash("Please enter valid numbers.", "danger")
             return redirect(url_for("generate"))
@@ -140,9 +152,13 @@ def generate():
             df = load_dataset(session["dataset_path"])
             df_clean, meta = preprocess(df)
 
-            # Train model (CTGAN or TVAE)
-            model = train_model(df_clean, model_type=model_type, epochs=epochs)
-            save_model(model)
+            # Train model (CTGAN, DP-CTGAN, or TVAE)
+            if model_type == "DP-CTGAN":
+                model_res = train_dp_ctgan(df_clean, target_col=None, epsilon=epsilon, epochs=epochs, verbose=True)
+                model = model_res["synthesizer"]
+            else:
+                model = train_model(df_clean, model_type=model_type, epochs=epochs)
+                save_model(model)
 
             # Generate synthetic data
             synthetic_df = generate_synthetic_data(model, num_rows)
@@ -166,6 +182,29 @@ def generate():
 
             # Privacy evaluation
             privacy = calculate_privacy_metrics(df_clean, synthetic_df)
+
+            # Shadow-Model MIA Evaluation
+            real_train, real_test = train_test_split(df_clean, test_size=0.2, random_state=42)
+            mia_res = run_mia(real_train, real_test, synthesizer=model, n_shadow=2, verbose=False)
+            mia_accuracy = mia_res.get("mia_accuracy", 0.5)
+
+            # PU-Score Calculation
+            u_f1 = 0.5
+            for res in ml_results.get("synthetic_results", []):
+                if res["Model"] == "Random Forest":
+                    raw_f1 = res.get("F1 Score", 0.5)
+                    try:
+                        u_f1 = float(raw_f1)
+                    except (TypeError, ValueError):
+                        u_f1 = 0.5  # fallback if DP-CTGAN collapsed to single class
+                    break
+            
+            r_mia = 1.0 - mia_accuracy
+            pu_score = (2.0 * u_f1 * r_mia) / (u_f1 + r_mia) if (u_f1 + r_mia) > 0 else 0.0
+
+            session["mia_accuracy"] = mia_accuracy
+            session["pu_score"] = round(pu_score, 4)
+            session["epsilon"] = epsilon if model_type == "DP-CTGAN" else None
 
             # Scientific quality scores (KS Test, JS Distance, Corr Similarity)
             scientific_scores = calculate_scientific_scores(df_clean, synthetic_df)
@@ -195,6 +234,12 @@ def generate():
             plot_files.append(os.path.basename(corr_plot))
             plot_files.append(os.path.basename(ml_chart))
 
+            import json
+            with open(os.path.join(PLOT_DIR, "hist_data.json"), "w") as f:
+                json.dump(hist_data, f)
+            with open(os.path.join(PLOT_DIR, "plot_files.json"), "w") as f:
+                json.dump(plot_files, f)
+
             # Store results in session-safe manner (keep simple strings)
             session["generated"] = True
             session["num_rows"] = num_rows
@@ -212,6 +257,9 @@ def generate():
                 plot_files=plot_files,
                 num_rows=num_rows,
                 model_type=model_type,
+                epsilon=session.get("epsilon"),
+                pu_score=session.get("pu_score"),
+                mia_accuracy=session.get("mia_accuracy"),
                 privacy=privacy,
                 feature_importance=ml_results.get("feature_importance"),
                 scientific_scores=scientific_scores,
@@ -290,6 +338,9 @@ def results():
             plot_files=plot_files,
             num_rows=len(synthetic_df),
             model_type=session.get("model_type", "CTGAN"),
+            epsilon=session.get("epsilon"),
+            pu_score=session.get("pu_score"),
+            mia_accuracy=session.get("mia_accuracy"),
             privacy=privacy,
             feature_importance=ml_results.get("feature_importance"),
             scientific_scores=scientific_scores,
@@ -367,6 +418,23 @@ def download_audit_report():
         import traceback; traceback.print_exc()
         return redirect(url_for("results"))
 
+
+# =============================================================================
+
+@app.route("/distributions")
+def distributions():
+    """Separate page dedicated to rendering distribution charts full screen."""
+    import json
+    hist_data = {}
+    plot_files = []
+    try:
+        with open(os.path.join(PLOT_DIR, "hist_data.json"), "r") as f:
+            hist_data = json.load(f)
+        with open(os.path.join(PLOT_DIR, "plot_files.json"), "r") as f:
+            plot_files = json.load(f)
+    except Exception:
+        pass
+    return render_template("distributions.html", hist_data=hist_data, plot_files=plot_files)
 
 # =============================================================================
 

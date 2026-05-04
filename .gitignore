@@ -32,3 +32,10 @@ static/plots/*.png
 # IDEs
 .vscode/
 .idea/
+
+# Documentation and Research Paper
+docs/
+Research_paper/
+Research_paper_Overleaf.zip
+humanizer/
+report/

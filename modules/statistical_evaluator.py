@@ -220,6 +220,7 @@ def plot_distributions(
         if c in synthetic.columns
     ]
 
+    import re
     for col in common_numeric:
         fig, ax = plt.subplots(figsize=(7, 4))
         ax.hist(real[col].dropna(), bins=30, alpha=0.55, label="Real", color="#4C72B0")
@@ -230,7 +231,8 @@ def plot_distributions(
         ax.legend()
         plt.tight_layout()
 
-        path = os.path.join(output_dir, f"dist_{col}.png")
+        safe_col = re.sub(r'[\\/*?:"<>|]', "", col)
+        path = os.path.join(output_dir, f"dist_{safe_col}.png")
         fig.savefig(path, dpi=120)
         plt.close(fig)
         saved.append(path)

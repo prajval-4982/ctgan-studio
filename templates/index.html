@@ -1,430 +1,545 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CTGAN — Synthetic Data Generation</title>
-    <meta name="description"
-        content="A Flask-based web application for generating synthetic tabular data using CTGAN, with statistical and ML evaluation.">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* ======= GLOBAL RESET & VARIABLES ======= */
-        *,
-        *::before,
-        *::after {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CTGAN Studio — Synthetic Data Generation & Evaluation</title>
+<meta name="description" content="Generate high-fidelity synthetic tabular data using CTGAN, TVAE, or DP-CTGAN with full evaluation.">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        :root {
-            --bg: #fafafa;
-            --bg-card: #ffffff;
-            --bg-card-hover: #f4f4f5;
-            --surface: #f4f4f5;
-            --border: #eaeaea;
-            --text: #111827;
-            --text-muted: #6b7280;
-            --accent: #000000;
-            --accent-glow: rgba(0, 0, 0, .15);
-            --accent2: #0070f3;
-            --accent3: #111827;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --radius: 12px;
-            --font: 'Inter', system-ui, sans-serif;
-        }
+:root {
+  --bg:        #09090B;
+  --bg-1:      #0F1015;
+  --bg-2:      #14151C;
+  --bg-3:      #1A1B25;
+  --border:    rgba(255,255,255,0.07);
+  --border-md: rgba(255,255,255,0.12);
+  --border-hi: rgba(255,255,255,0.2);
+  --text-1:    #F2F2F5;
+  --text-2:    #9496A1;
+  --text-3:    #52545F;
+  --c-ctgan:   #60A5FA;
+  --c-tvae:    #34D399;
+  --c-dp:      #F472B6;
+  --success:   #34D399;
+  --warning:   #FBBF24;
+  --danger:    #F87171;
+  --mono: 'Geist Mono', monospace;
+  --serif: 'Instrument Serif', serif;
+  --sans: 'Geist', sans-serif;
+}
 
-        html {
-            scroll-behavior: smooth;
-        }
+html { scroll-behavior: smooth; }
 
-        body {
-            font-family: var(--font);
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            line-height: 1.6;
-        }
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+  overflow-x: hidden;
+}
 
-        /* ======= NAVBAR ======= */
-        nav {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem 2.5rem;
-            background: rgba(244, 244, 245, .80);
-            backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--border);
-        }
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 56px 56px;
+  pointer-events: none;
+  z-index: 0;
+}
 
-         .logo {
-            font-size: 1.35rem;
-            font-weight: 800;
-            color: var(--accent);
-            letter-spacing: -0.02em;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
+/* NAV */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px;
+  background: rgba(9,9,11,0.82);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.nav-brand img { height: 28px; width: auto; border-radius: 5px; }
+.nav-name { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--text-1); letter-spacing: -0.01em; }
+.nav-links { display: flex; align-items: center; gap: 24px; list-style: none; }
+.nav-links a { font-family: var(--mono); font-size: 11px; color: var(--text-3); text-decoration: none; letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.15s; }
+.nav-links a:hover, .nav-links a.active { color: var(--text-1); }
 
-        .logo img {
-            height: 32px;
-            width: auto;
-        }
-        nav .nav-links {
-            display: flex;
-            gap: 1.8rem;
-            list-style: none;
-        }
+/* Flash */
+.flash-wrap { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 200; width: 90%; max-width: 560px; }
+.flash { padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; margin-bottom: 8px; backdrop-filter: blur(8px); text-align: center; }
+.flash-success { background: rgba(52,211,153,0.1); color: var(--success); border: 1px solid rgba(52,211,153,0.2); }
+.flash-warning { background: rgba(251,191,36,0.1); color: var(--warning); border: 1px solid rgba(251,191,36,0.2); }
+.flash-danger  { background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.2); }
 
-        nav .nav-links a {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-weight: 500;
-            font-size: .95rem;
-            transition: color .2s;
-        }
+/* HERO */
+.hero {
+  position: relative; z-index: 1;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 100px 32px 64px; text-align: center;
+}
+.hero-orb { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; }
+.orb-1 { width: 500px; height: 300px; top: 15%; left: 50%; transform: translateX(-50%); background: radial-gradient(ellipse, rgba(96,165,250,0.07) 0%, transparent 70%); }
+.orb-2 { width: 300px; height: 300px; top: 40%; left: 20%; background: radial-gradient(ellipse, rgba(52,211,153,0.05) 0%, transparent 70%); }
+.orb-3 { width: 300px; height: 300px; top: 30%; right: 15%; background: radial-gradient(ellipse, rgba(244,114,182,0.05) 0%, transparent 70%); }
 
-        nav .nav-links a:hover,
-        nav .nav-links a.active {
-            color: var(--accent);
-        }
+.hero-title {
+  font-family: var(--serif); font-size: clamp(48px, 8vw, 88px); font-weight: 400;
+  line-height: 1.0; letter-spacing: -0.02em; margin-bottom: 28px;
+  animation: fadeUp 0.5s 0.08s ease both;
+}
+.hero-title em { font-style: italic; color: var(--text-2); }
 
-        /* ======= HERO ======= */
-        .hero {
-            text-align: center;
-            padding: 6rem 2rem 4rem;
-            background: radial-gradient(ellipse at 50% 0%, var(--accent-glow) 0%, transparent 60%);
-        }
+.hero-sub {
+  max-width: 480px; color: var(--text-2); font-size: 15px; line-height: 1.75;
+  margin-bottom: 48px; animation: fadeUp 0.5s 0.16s ease both;
+}
 
-        .hero h1 {
-            font-size: 3.2rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #111, var(--accent2));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: .75rem;
-        }
+.hero-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+  animation: fadeUp 0.5s 0.24s ease both;
+}
 
-        .hero p {
-            font-size: 1.15rem;
-            color: var(--text-muted);
-            max-width: 640px;
-            margin: 0 auto 2.5rem;
-        }
+.btn-solid {
+  display: inline-flex; align-items: center; gap: 7px; padding: 11px 22px;
+  background: var(--text-1); color: var(--bg);
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  border-radius: 6px; text-decoration: none; letter-spacing: 0.01em;
+  transition: opacity 0.15s; border: none; cursor: pointer;
+}
+.btn-solid:hover { opacity: 0.88; }
 
-        .hero .cta {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px;
+  background: transparent; color: var(--text-2);
+  font-family: var(--mono); font-size: 12px;
+  border-radius: 6px; text-decoration: none; border: 1px solid var(--border-md);
+  transition: all 0.15s; cursor: pointer;
+}
+.btn-outline:hover { color: var(--text-1); border-color: var(--border-hi); }
 
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: .5rem;
-            padding: .75rem 1.65rem;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: .95rem;
-            text-decoration: none;
-            border: none;
-            cursor: pointer;
-            transition: transform .15s, box-shadow .25s;
-        }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
-        .btn:hover {
-            transform: translateY(-2px);
-        }
+.model-dots {
+  display: flex; align-items: center; gap: 28px;
+  margin-top: 60px; animation: fadeUp 0.5s 0.32s ease both;
+}
+.mdot { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--text-3); letter-spacing: 0.06em; }
+.mdot-circle { width: 8px; height: 8px; border-radius: 50%; }
+.mdot-sep { color: var(--border-md); font-size: 18px; line-height: 1; }
 
-        .btn-primary {
-            background: var(--accent);
-            color: #fff;
-            box-shadow: 0 4px 14px var(--accent-glow);
-        }
+/* STATS BAND */
+.stats-band {
+  position: relative; z-index: 1;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+  display: grid; grid-template-columns: repeat(5, 1fr);
+}
+.stat-cell { padding: 28px 20px; text-align: center; border-right: 1px solid var(--border); }
+.stat-cell:last-child { border-right: none; }
+.stat-n { font-family: var(--mono); font-size: 26px; font-weight: 500; color: var(--text-1); display: block; margin-bottom: 4px; }
+.stat-l { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); }
 
-        .btn-primary:hover {
-            box-shadow: 0 8px 32px var(--accent-glow);
-        }
+/* SECTION */
+.section { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 96px 32px; }
+.sec-tag { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-3); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+.sec-tag::before { content: '//'; color: var(--border-md); }
+.sec-title { font-family: var(--serif); font-size: clamp(28px, 4vw, 42px); font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 14px; }
+.sec-title em { font-style: italic; color: var(--text-2); }
+.sec-sub { color: var(--text-2); font-size: 14px; max-width: 480px; line-height: 1.75; margin-bottom: 52px; }
+.divider { position: relative; z-index: 1; height: 1px; background: var(--border); }
 
-        .btn-outline {
-            background: transparent;
-            color: var(--accent2);
-            border: 1.5px solid var(--accent2);
-        }
+/* MODEL CARDS */
+.models-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.model-card { background: var(--bg-1); padding: 36px 28px 28px; position: relative; transition: background 0.2s; text-decoration: none; display: block; color: inherit; }
+.model-card:hover { background: var(--bg-2); }
+.model-accent-line { position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.model-type { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; padding: 3px 8px; border-radius: 3px; display: inline-block; margin-bottom: 20px; border: 1px solid; }
+.model-name { font-family: var(--serif); font-size: 22px; font-weight: 400; letter-spacing: -0.01em; margin-bottom: 10px; line-height: 1.2; }
+.model-desc { font-size: 13px; color: var(--text-2); line-height: 1.75; margin-bottom: 28px; }
+.model-specs { border-top: 1px solid var(--border); padding-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.spec-row { display: flex; justify-content: space-between; align-items: baseline; }
+.spec-key { font-family: var(--mono); font-size: 10px; color: var(--text-3); letter-spacing: 0.04em; }
+.spec-val { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
+.model-link { display: flex; align-items: center; gap: 6px; margin-top: 24px; font-family: var(--mono); font-size: 11px; opacity: 0; transition: opacity 0.2s; }
+.model-card:hover .model-link { opacity: 1; }
 
-        .btn-outline:hover {
-            background: rgba(0, 0, 0, .05);
-        }
+.skin-ctgan .model-accent-line { background: var(--c-ctgan); }
+.skin-ctgan .model-type { color: var(--c-ctgan); border-color: rgba(96,165,250,0.2); background: rgba(96,165,250,0.05); }
+.skin-ctgan .model-link { color: var(--c-ctgan); }
+.skin-tvae .model-accent-line { background: var(--c-tvae); }
+.skin-tvae .model-type { color: var(--c-tvae); border-color: rgba(52,211,153,0.2); background: rgba(52,211,153,0.05); }
+.skin-tvae .model-link { color: var(--c-tvae); }
+.skin-dp .model-accent-line { background: var(--c-dp); }
+.skin-dp .model-type { color: var(--c-dp); border-color: rgba(244,114,182,0.2); background: rgba(244,114,182,0.05); }
+.skin-dp .model-link { color: var(--c-dp); }
 
-        /* ======= CARDS ======= */
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            padding: 0 2.5rem 4rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+/* WORKFLOW */
+.workflow { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--border); gap: 1px; }
+.wf-step { background: var(--bg-1); padding: 28px 20px; }
+.wf-num { font-family: var(--mono); font-size: 9px; color: var(--text-3); letter-spacing: 0.08em; display: block; margin-bottom: 14px; }
+.wf-icon { font-size: 18px; margin-bottom: 12px; display: block; }
+.wf-name { font-family: var(--sans); font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-1); }
+.wf-detail { font-family: var(--mono); font-size: 10px; color: var(--text-3); line-height: 1.8; }
 
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 2rem;
-            transition: background .2s, border-color .2s, transform .2s;
-        }
+/* BOOSTERS */
+.boost-card { background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; padding: 28px 24px; transition: border-color 0.2s; }
+.boost-card:hover { border-color: var(--border-md); }
+.boost-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 18px; }
+.boost-name { font-size: 14px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
+.boost-desc { font-size: 12px; color: var(--text-2); line-height: 1.75; }
+.boost-tag { display: inline-block; margin-top: 14px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 7px; border-radius: 3px; border: 1px solid var(--border); color: var(--text-3); }
 
-        .card:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--accent);
-            transform: translateY(-4px);
-        }
+/* DP SECTION */
+.dp-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.eps-row { display: grid; grid-template-columns: 64px 1fr 76px; align-items: center; gap: 16px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 10px; transition: border-color 0.2s; }
+.eps-row:hover { border-color: var(--border-md); }
+.eps-val { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--c-dp); }
+.eps-name { font-family: var(--mono); font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 5px; }
+.eps-track { height: 3px; background: var(--bg-3); border-radius: 2px; overflow: hidden; }
+.eps-fill { height: 100%; border-radius: 2px; background: var(--c-dp); opacity: 0.55; }
+.eps-use { font-family: var(--mono); font-size: 10px; color: var(--text-3); text-align: right; line-height: 1.6; }
 
-        .card .icon {
-            font-size: 2rem;
-            margin-bottom: .75rem;
-        }
+/* TERMINAL */
+.terminal { background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.t-header { display: flex; align-items: center; gap: 7px; padding: 11px 16px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+.tdot { width: 9px; height: 9px; border-radius: 50%; }
+.tdot-r { background: #FF5F57; } .tdot-y { background: #FEBC2E; } .tdot-g { background: #28C840; }
+.t-label { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-left: 6px; }
+.t-body { padding: 18px 22px; font-family: var(--mono); font-size: 11px; line-height: 2.1; }
+.tc { color: var(--text-3); } .tk { color: var(--c-ctgan); } .tp { color: var(--c-dp); }
+.ts { color: var(--text-2); } .tok { color: #28C840; } .tw { color: #FEBC2E; }
 
-        .card h3 {
-            font-size: 1.15rem;
-            margin-bottom: .5rem;
-        }
+/* EXPORT */
+.export-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+.exp-card { background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; padding: 24px 18px; text-align: center; transition: all 0.2s; }
+.exp-card:hover { border-color: var(--border-md); transform: translateY(-2px); }
+.exp-fmt { font-family: var(--mono); font-size: 18px; font-weight: 500; color: var(--text-1); display: block; margin-bottom: 6px; }
+.exp-name { font-family: var(--mono); font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
 
-        .card p {
-            color: var(--text-muted);
-            font-size: .92rem;
-        }
+/* CTA */
+.cta-block { position: relative; z-index: 1; border-top: 1px solid var(--border); background: var(--bg-1); padding: 88px 32px; text-align: center; overflow: hidden; }
+.cta-block::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 700px; height: 350px; background: radial-gradient(ellipse, rgba(244,114,182,0.04) 0%, rgba(96,165,250,0.04) 50%, transparent 70%); pointer-events: none; }
+.cta-title { font-family: var(--serif); font-size: clamp(32px, 5vw, 56px); font-weight: 400; letter-spacing: -0.025em; line-height: 1.08; margin-bottom: 18px; position: relative; }
+.cta-title em { font-style: italic; color: var(--text-2); }
+.cta-sub { color: var(--text-2); font-size: 14px; margin-bottom: 40px; position: relative; }
+.cta-btns { display: flex; justify-content: center; gap: 12px; position: relative; }
 
-        /* ======= PIPELINE SECTION ======= */
-        .pipeline-section {
-            padding: 2rem 2.5rem 4rem;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
+@media (max-width: 900px) {
+  .models-grid { grid-template-columns: 1fr; }
+  .workflow { grid-template-columns: repeat(3, 1fr); }
+  .dp-layout { grid-template-columns: 1fr; }
+  .export-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  nav { padding: 0 20px; }
+  .nav-links { gap: 16px; }
+  .workflow { grid-template-columns: 1fr 1fr; }
+  .stats-band { grid-template-columns: repeat(3, 1fr); }
+}
 
-        .pipeline-section h2 {
-            text-align: center;
-            font-size: 1.8rem;
-            margin-bottom: 2rem;
-        }
-
-        .pipeline {
-            display: flex;
-            flex-direction: column;
-            gap: .5rem;
-            position: relative;
-        }
-
-        .pipeline::before {
-            content: '';
-            position: absolute;
-            left: 24px;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: var(--border);
-            border-radius: 4px;
-        }
-
-        .pipe-step {
-            display: flex;
-            align-items: center;
-            gap: 1.2rem;
-            padding: .85rem 1.2rem;
-            position: relative;
-        }
-
-        .pipe-step .dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: var(--accent);
-            border: 3px solid var(--bg);
-            flex-shrink: 0;
-            z-index: 1;
-            box-shadow: 0 0 10px var(--accent-glow);
-        }
-
-        .pipe-step span {
-            font-size: 1rem;
-            font-weight: 500;
-        }
-
-        /* ======= FOOTER ======= */
-        footer {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-muted);
-            font-size: .85rem;
-            border-top: 1px solid var(--border);
-        }
-
-        footer a {
-            color: var(--accent2);
-            text-decoration: none;
-        }
-
-        /* ======= FLASH ======= */
-        .flash {
-            padding: 1rem 2rem;
-            margin: 1rem 2.5rem;
-            border-radius: 10px;
-            font-weight: 500;
-            font-size: .95rem;
-        }
-
-        .flash-success {
-            background: rgba(16, 185, 129, .12);
-            color: var(--success);
-            border: 1px solid rgba(16, 185, 129, .3);
-        }
-
-        .flash-warning {
-            background: rgba(245, 158, 11, .12);
-            color: var(--warning);
-            border: 1px solid rgba(245, 158, 11, .3);
-        }
-
-        .flash-danger {
-            background: rgba(239, 68, 68, .12);
-            color: var(--danger);
-            border: 1px solid rgba(239, 68, 68, .3);
-        }
-
-        /* ======= RESPONSIVE ======= */
-        @media (max-width: 640px) {
-            .hero h1 {
-                font-size: 2rem;
-            }
-
-            nav {
-                padding: 1rem 1.2rem;
-            }
-
-            .cards {
-                padding: 0 1.2rem 3rem;
-            }
-        }
-    </style>
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+</style>
 </head>
-
 <body>
 
-    <!-- Navbar -->
-    <nav>
-        <div class="logo">
-            <img src="{{ url_for('static', filename='favicon.png') }}" alt="Logo">
-            CTGAN Studio
-        </div>
-        <ul class="nav-links">
-            <li><a href="/" class="active">Home</a></li>
-            <li><a href="/upload">Upload</a></li>
-            <li><a href="/generate">Generate</a></li>
-            <li><a href="/results">Results</a></li>
-        </ul>
-    </nav>
+<!-- Flash -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-wrap">
+  {% for category, msg in messages %}
+  <div class="flash flash-{{ category }}">{{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
 
-    <!-- Flash messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, msg in messages %}
-    <div class="flash flash-{{ category }}">{{ msg }}</div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
+<nav>
+  <a href="/" class="nav-brand">
+    <img src="{{ url_for('static', filename='favicon.png') }}" alt="Logo">
+    <span class="nav-name">CTGAN Studio</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="/" class="active">Home</a></li>
+    <li><a href="/upload">Upload</a></li>
+    <li><a href="/generate">Generate</a></li>
+    <li><a href="/results">Results</a></li>
+  </ul>
+</nav>
 
-    <!-- Hero -->
-    <section class="hero">
-        <h1>Synthetic Data Generation<br>with CTGAN</h1>
-        <p>Upload your real-world tabular dataset, train a Conditional GAN, and generate
-            high-fidelity synthetic data — complete with statistical and ML evaluation.</p>
-        <div class="cta">
-            <a href="/upload" class="btn btn-primary" id="btn-get-started">🚀 Get Started</a>
-            <a href="#pipeline" class="btn btn-outline" id="btn-how-it-works">📊 How It Works</a>
-        </div>
-    </section>
+<div class="hero">
+  <div class="hero-orb orb-1"></div>
+  <div class="hero-orb orb-2"></div>
+  <div class="hero-orb orb-3"></div>
 
-    <!-- Feature Cards -->
-    <section class="cards">
-        <div class="card">
-            <div class="icon">📂</div>
-            <h3>Upload Dataset</h3>
-            <p>Upload any CSV dataset — the system validates and previews it instantly.</p>
-        </div>
-        <div class="card">
-            <div class="icon">🧹</div>
-            <h3>Auto Preprocessing</h3>
-            <p>Missing values are imputed and categorical columns are encoded automatically.</p>
-        </div>
-        <div class="card">
-            <div class="icon">🧠</div>
-            <h3>CTGAN Training</h3>
-            <p>A Conditional Tabular GAN learns the joint distribution of your real data.</p>
-        </div>
-        <div class="card">
-            <div class="icon">🔄</div>
-            <h3>Generate Records</h3>
-            <p>Create any number of synthetic rows that mirror the statistical properties of the original.</p>
-        </div>
-        <div class="card">
-            <div class="icon">📈</div>
-            <h3>Statistical Evaluation</h3>
-            <p>Distribution histograms, correlation heatmaps, mean/std comparisons.</p>
-        </div>
-        <div class="card">
-            <div class="icon">🤖</div>
-            <h3>ML Utility Testing</h3>
-            <p>Logistic Regression & Decision Tree trained on real vs. synthetic data.</p>
-        </div>
-    </section>
+  <h1 class="hero-title">
+    Synthetic data,<br><em>without compromise.</em>
+  </h1>
 
-    <!-- Pipeline -->
-    <section class="pipeline-section" id="pipeline">
-        <h2>Application Pipeline</h2>
-        <div class="pipeline">
-            <div class="pipe-step">
-                <div class="dot"></div><span>1 — Upload CSV Dataset</span>
-            </div>
-            <div class="pipe-step">
-                <div class="dot"></div><span>2 — Automatic Preprocessing</span>
-            </div>
-            <div class="pipe-step">
-                <div class="dot"></div><span>3 — CTGAN Model Training</span>
-            </div>
-            <div class="pipe-step">
-                <div class="dot"></div><span>4 — Synthetic Data Generation</span>
-            </div>
-            <div class="pipe-step">
-                <div class="dot"></div><span>5 — Statistical Evaluation</span>
-            </div>
-            <div class="pipe-step">
-                <div class="dot"></div><span>6 — Machine Learning Evaluation</span>
-            </div>
-            <div class="pipe-step">
-                <div class="dot"></div><span>7 — Visualization & Reports</span>
-            </div>
-            <div class="pipe-step">
-                <div class="dot"></div><span>8 — Dashboard Results & Downloads</span>
-            </div>
-        </div>
-    </section>
+  <p class="hero-sub">
+    Generate high-fidelity tabular data using CTGAN, TVAE, or DP-CTGAN — with full statistical, privacy, and ML utility evaluation built in.
+  </p>
 
-    <!-- Footer -->
-    <footer>
-        Built with ❤️ using <a href="https://sdv.dev/" target="_blank">SDV</a> &amp; Flask
-        &nbsp;|&nbsp; MCA Final Year Project
-    </footer>
+  <div class="hero-actions">
+    <a href="/upload" class="btn-solid">↑ &nbsp;Upload Dataset</a>
+    <a href="/generate" class="btn-outline">Configure &amp; Generate</a>
+    <a href="/results" class="btn-outline">View Results</a>
+  </div>
+
+  <div class="model-dots">
+    <div class="mdot"><div class="mdot-circle" style="background:var(--c-ctgan)"></div>CTGAN</div>
+    <span class="mdot-sep">·</span>
+    <div class="mdot"><div class="mdot-circle" style="background:var(--c-tvae)"></div>TVAE</div>
+    <span class="mdot-sep">·</span>
+    <div class="mdot"><div class="mdot-circle" style="background:var(--c-dp)"></div>DP-CTGAN</div>
+  </div>
+</div>
+
+<div class="stats-band">
+  <div class="stat-cell"><span class="stat-n">3</span><span class="stat-l">Synthesizer Models</span></div>
+  <div class="stat-cell"><span class="stat-n">4</span><span class="stat-l">Export Formats</span></div>
+  <div class="stat-cell"><span class="stat-n">4</span><span class="stat-l">ε Privacy Tiers</span></div>
+  <div class="stat-cell"><span class="stat-n">5</span><span class="stat-l">Evaluation Modules</span></div>
+  <div class="stat-cell"><span class="stat-n">300+</span><span class="stat-l">Recommended Epochs</span></div>
+</div>
+
+<div class="divider"></div>
+<section class="section" id="models">
+  <div class="sec-tag">Synthesizer Models</div>
+  <h2 class="sec-title">Three models, <em>one platform.</em></h2>
+  <p class="sec-sub">Each model suits different dataset characteristics and privacy requirements. Choose based on your data complexity and compliance needs.</p>
+
+  <div class="models-grid">
+    <a href="/generate" class="model-card skin-ctgan">
+      <div class="model-accent-line"></div>
+      <span class="model-type">GAN · Adversarial</span>
+      <div class="model-name">CTGAN</div>
+      <p class="model-desc">Conditional Tabular GAN. Captures complex relationships between categorical and continuous columns using adversarial training with a mode-specific normalizer.</p>
+      <div class="model-specs">
+        <div class="spec-row"><span class="spec-key">Architecture</span><span class="spec-val">Generator + Discriminator</span></div>
+        <div class="spec-row"><span class="spec-key">Best for</span><span class="spec-val">Mixed feature types</span></div>
+        <div class="spec-row"><span class="spec-key">Recommended epochs</span><span class="spec-val">300 – 500</span></div>
+        <div class="spec-row"><span class="spec-key">Privacy</span><span class="spec-val">Standard (DCR audit)</span></div>
+      </div>
+      <div class="model-link">Use CTGAN →</div>
+    </a>
+
+    <a href="/generate" class="model-card skin-tvae">
+      <div class="model-accent-line"></div>
+      <span class="model-type">VAE · Probabilistic</span>
+      <div class="model-name">TVAE</div>
+      <p class="model-desc">Tabular Variational Autoencoder. Encodes data into a latent probability distribution — faster training, superior statistical distribution preservation.</p>
+      <div class="model-specs">
+        <div class="spec-row"><span class="spec-key">Architecture</span><span class="spec-val">Encoder + Decoder</span></div>
+        <div class="spec-row"><span class="spec-key">Best for</span><span class="spec-val">Distribution fidelity</span></div>
+        <div class="spec-row"><span class="spec-key">Training speed</span><span class="spec-val">Faster than CTGAN</span></div>
+        <div class="spec-row"><span class="spec-key">Privacy</span><span class="spec-val">Standard (DCR audit)</span></div>
+      </div>
+      <div class="model-link">Use TVAE →</div>
+    </a>
+
+    <a href="/generate" class="model-card skin-dp">
+      <div class="model-accent-line"></div>
+      <span class="model-type">GAN · Differentially Private</span>
+      <div class="model-name">DP-CTGAN</div>
+      <p class="model-desc">CTGAN with DP-SGD injected into the Discriminator via Opacus. Gradient clipping + Gaussian noise mathematically prevents memorization of individual records.</p>
+      <div class="model-specs">
+        <div class="spec-row"><span class="spec-key">Architecture</span><span class="spec-val">CTGAN + DP-SGD</span></div>
+        <div class="spec-row"><span class="spec-key">Best for</span><span class="spec-val">Sensitive / regulated data</span></div>
+        <div class="spec-row"><span class="spec-key">Privacy budget</span><span class="spec-val">ε = 0.5 → 10</span></div>
+        <div class="spec-row"><span class="spec-key">Audit</span><span class="spec-val">MIA + DCR</span></div>
+      </div>
+      <div class="model-link">Use DP-CTGAN →</div>
+    </a>
+  </div>
+</section>
+
+<div class="divider"></div>
+<section class="section" id="workflow">
+  <div class="sec-tag">How it works</div>
+  <h2 class="sec-title">Five steps, <em>end to end.</em></h2>
+  <p class="sec-sub">From raw CSV to fully evaluated synthetic data — the entire pipeline runs inside the browser-based interface.</p>
+
+  <div class="workflow">
+    <div class="wf-step">
+      <span class="wf-num">01</span>
+      <span class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+      <div class="wf-name">Upload</div>
+      <div class="wf-detail">Any CSV dataset.<br>Auto dtype detection.<br>Categorical encoding.</div>
+    </div>
+    <div class="wf-step">
+      <span class="wf-num">02</span>
+      <span class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+      <div class="wf-name">Configure</div>
+      <div class="wf-detail">Pick model.<br>Set epochs &amp; rows.<br>Choose ε if using DP.</div>
+    </div>
+    <div class="wf-step">
+      <span class="wf-num">03</span>
+      <span class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg></span>
+      <div class="wf-name">Generate</div>
+      <div class="wf-detail">GAN / VAE trains.<br>Synthetic rows produced.<br>Live terminal logs.</div>
+    </div>
+    <div class="wf-step">
+      <span class="wf-num">04</span>
+      <span class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+      <div class="wf-name">Evaluate</div>
+      <div class="wf-detail">Statistical fidelity.<br>Privacy audit (DCR/MIA).<br>ML utility scoring.</div>
+    </div>
+    <div class="wf-step">
+      <span class="wf-num">05</span>
+      <span class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+      <div class="wf-name">Export</div>
+      <div class="wf-detail">CSV · Excel · JSON<br>or DOCX report.<br>Full results dashboard.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+<section class="section" id="evaluation">
+  <div class="sec-tag">Evaluation Suite</div>
+  <h2 class="sec-title">Know your data <em>is real enough.</em></h2>
+  <p class="sec-sub">Five evaluation modules run automatically after generation — covering statistical fidelity, privacy leakage, and downstream ML utility.</p>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+    <div class="boost-card">
+      <div class="boost-icon" style="background:rgba(96,165,250,0.08); color: #60A5FA;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="boost-name">Statistical Fidelity</div>
+      <p class="boost-desc">Side-by-side comparison of means, standard deviations, and correlation heatmaps between real and synthetic datasets. Column-level distribution plots for every feature.</p>
+      <span class="boost-tag">All models</span>
+    </div>
+    <div class="boost-card">
+      <div class="boost-icon" style="background:rgba(52,211,153,0.08); color: #34D399;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      </div>
+      <div class="boost-name">Feature Importance Alignment</div>
+      <p class="boost-desc">Random Forest models trained on both real and synthetic data — proves the synthetic dataset has preserved the underlying feature logic and relative importance rankings.</p>
+      <span class="boost-tag">All models</span>
+    </div>
+    <div class="boost-card">
+      <div class="boost-icon" style="background:rgba(250,204,21,0.08); color: #FBBF24;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+      </div>
+      <div class="boost-name">ML Utility Scoring</div>
+      <p class="boost-desc">Benchmarks synthetic data against real data using Logistic Regression, Decision Trees, and Random Forests. Reports F1-scores across all three classifiers.</p>
+      <span class="boost-tag">All models</span>
+    </div>
+    <div class="boost-card">
+      <div class="boost-icon" style="background:rgba(244,114,182,0.08); color: #F472B6;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="boost-name">DCR Privacy Audit</div>
+      <p class="boost-desc">Distance to Closest Record analysis. Detects memorization or data leakage by measuring how close synthetic rows are to actual training records in feature space.</p>
+      <span class="boost-tag">All models</span>
+    </div>
+    <div class="boost-card" style="grid-column:1/-1; border-color:rgba(244,114,182,0.18);">
+      <div style="display:flex; align-items:flex-start; gap:20px;">
+        <div class="boost-icon" style="background:rgba(244,114,182,0.08); color: #F472B6; flex-shrink:0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div>
+          <div class="boost-name" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            Membership Inference Attack Audit
+            <span style="font-family:var(--mono);font-size:9px;color:var(--c-dp);border:1px solid rgba(244,114,182,0.25);padding:2px 8px;border-radius:3px;font-weight:400;">DP-CTGAN only</span>
+          </div>
+          <p class="boost-desc" style="margin-top:8px;">Black-box Membership Inference Attack using a shadow Random Forest classifier. Measures whether an adversary can determine if a record was in the training set — target accuracy ≤ 60%.</p>
+          <span class="boost-tag">DP-CTGAN</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+<section class="section" id="privacy">
+  <div class="sec-tag">Differential Privacy</div>
+  <h2 class="sec-title">Mathematical privacy <em>with ε control.</em></h2>
+  <p class="sec-sub">DP-CTGAN enforces a strict privacy budget ε via DP-SGD. Lower ε means stronger privacy and more noise. Benchmark all four tiers to find your optimal trade-off point.</p>
+
+  <div class="dp-layout">
+    <div>
+      <div class="eps-row">
+        <span class="eps-val">ε = 0.5</span>
+        <div><span class="eps-name">Ultra-strict</span><div class="eps-track"><div class="eps-fill" style="width:92%"></div></div></div>
+        <span class="eps-use">Medical<br>records</span>
+      </div>
+      <div class="eps-row">
+        <span class="eps-val">ε = 1.0</span>
+        <div><span class="eps-name">Strict</span><div class="eps-track"><div class="eps-fill" style="width:72%"></div></div></div>
+        <span class="eps-use">Healthcare<br>datasets</span>
+      </div>
+      <div class="eps-row">
+        <span class="eps-val">ε = 5.0</span>
+        <div><span class="eps-name">Moderate</span><div class="eps-track"><div class="eps-fill" style="width:46%"></div></div></div>
+        <span class="eps-use">Financial<br>data</span>
+      </div>
+      <div class="eps-row">
+        <span class="eps-val">ε = 10</span>
+        <div><span class="eps-name">Relaxed</span><div class="eps-track"><div class="eps-fill" style="width:22%"></div></div></div>
+        <span class="eps-use">Low-risk<br>benchmarks</span>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="t-header">
+        <div class="tdot tdot-r"></div><div class="tdot tdot-y"></div><div class="tdot tdot-g"></div>
+        <span class="t-label">dp_ctgan_trainer.py — ε = 1.0</span>
+      </div>
+      <div class="t-body">
+        <div><span class="tc"># DP-CTGAN via Opacus DP-SGD</span></div>
+        <div><span class="tk">trainer</span> = <span class="tp">DPCTGANTrainer</span>(</div>
+        <div>&nbsp;&nbsp;epsilon=<span class="tp">1.0</span>, delta=<span class="tp">1e-5</span>,</div>
+        <div>&nbsp;&nbsp;max_grad_norm=<span class="tp">1.0</span>, epochs=<span class="tp">300</span></div>
+        <div>)</div>
+        <div><span class="tk">trainer</span>.fit(df)</div>
+        <div>&nbsp;</div>
+        <div><span class="ts">» [150/300]  D_loss: 0.4821  ε_spent: 0.61</span></div>
+        <div><span class="ts">» [300/300]  D_loss: 0.3210  ε_spent: 1.00 ✓</span></div>
+        <div>&nbsp;</div>
+        <div><span class="tok">✓ MIA Accuracy : 52.3%  (≤ 60%)  PASS</span></div>
+        <div><span class="tw">→ DCR Score    : 99.5%</span></div>
+        <div><span class="tw">→ F1 Utility   : 0.831</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+<section class="section">
+  <div class="sec-tag">Export</div>
+  <h2 class="sec-title">Your data, <em>your format.</em></h2>
+  <p class="sec-sub">Download generated synthetic data in four formats directly from the results dashboard.</p>
+  <div class="export-grid">
+    <div class="exp-card"><span class="exp-fmt">.CSV</span><span class="exp-name">Comma-Separated</span></div>
+    <div class="exp-card"><span class="exp-fmt">.XLSX</span><span class="exp-name">Excel Workbook</span></div>
+    <div class="exp-card"><span class="exp-fmt">.JSON</span><span class="exp-name">JSON Array</span></div>
+    <div class="exp-card"><span class="exp-fmt">.DOCX</span><span class="exp-name">Word Report</span></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+<div class="cta-block">
+  <h2 class="cta-title">Ready to synthesize<br><em>your dataset?</em></h2>
+  <p class="cta-sub">Upload a CSV and generate privacy-safe synthetic data in minutes.</p>
+  <div class="cta-btns">
+    <a href="/upload" class="btn-solid">↑ &nbsp;Upload Dataset</a>
+    <a href="/generate" class="btn-outline">Configure Model →</a>
+  </div>
+</div>
 
 </body>
-
 </html>

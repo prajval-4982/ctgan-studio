@@ -46,6 +46,11 @@ def calculate_privacy_metrics(
     real_num = real[common_cols].select_dtypes(include=[np.number])
     synth_num = synthetic[common_cols].select_dtypes(include=[np.number])
 
+    # Ensure precise matching after dtype selection
+    final_common = [c for c in real_num.columns if c in synth_num.columns]
+    real_num = real_num[final_common]
+    synth_num = synth_num[final_common]
+
     if real_num.empty or synth_num.empty:
         return _empty_result()
 
